@@ -33,57 +33,52 @@ func Open() (*Stream, error) {
 	return s, nil
 }
 
-func (s *Stream) writeHeader(f *Buffer) error {
-	if _, err := f.WriteString("FORM"); err != nil {
+func writeBigEndian(w io.Writer, data ...any) error {
+	for _, d := range data {
+		if err := binary.Write(w, binary.BigEndian, d); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Stream) writeHeader(w *Buffer) error {
+	if _, err := w.WriteString("FORM"); err != nil {
 		return err
 	}
-	if err := (binary.Write(f, binary.BigEndian, int32(0))); err != nil { // total bytes
+	if err := writeBigEndian(w, int32(0)); err != nil { // total bytes
 		return err
 	}
-	if _, err := f.WriteString("AIFF"); err != nil {
+	if _, err := w.WriteString("AIFF"); err != nil {
 		return err
 	}
 
 	// common chunk
-	if _, err := f.WriteString("COMM"); err != nil {
+	if _, err := w.WriteString("COMM"); err != nil {
 		return err
 	}
-	if err := (binary.Write(f, binary.BigEndian, int32(18))); err != nil { //size
-		return err
-	}
-	if err := binary.Write(f, binary.BigEndian, int16(1)); err != nil {
-		return err
-	}
-	// Write number of samples (int32(0))
-	if err := binary.Write(f, binary.BigEndian, int32(0)); err != nil {
-		return err
-	}
-	// Write bits per sample (int16(32))
-	if err := binary.Write(f, binary.BigEndian, int16(32)); err != nil {
+	if err := writeBigEndian(w,
+		int32(18), // size
+		int16(1),  // channels
+		int32(0),  // number of samples,
+		int16(32), // bits per sample
+	); err != nil {
 		return err
 	}
 	// Write 80-bit sample rate (44100)
-	_, err := f.Write([]byte{0x40, 0x0e, 0xac, 0x44, 0, 0, 0, 0, 0, 0})
+	_, err := w.Write([]byte{0x40, 0x0e, 0xac, 0x44, 0, 0, 0, 0, 0, 0})
 	if err != nil {
 		return err
 	}
 
-	if _, err := f.WriteString("SSND"); err != nil {
+	if _, err := w.WriteString("SSND"); err != nil {
 		return err
 	}
-	// Write size (int32(0))
-	if err := binary.Write(f, binary.BigEndian, int32(0)); err != nil {
-		return err
-	}
-	// Write offset (int32(0))
-	if err := binary.Write(f, binary.BigEndian, int32(0)); err != nil {
-		return err
-	}
-	// Write block (int32(0))
-	if err := binary.Write(f, binary.BigEndian, int32(0)); err != nil {
-		return err
-	}
-	return nil
+	return writeBigEndian(w,
+		int32(0),
+		int32(0), // offset
+		int32(0), // block
+	)
 }
 
 func (s *Stream) Read(f *Buffer, done <-chan struct{}) error {
@@ -105,7 +100,7 @@ func (s *Stream) Read(f *Buffer, done <-chan struct{}) error {
 			if err := s.stream.Read(); err != nil {
 				return err
 			}
-			if err := binary.Write(f, binary.BigEndian, s.buffer); err != nil {
+			if err := writeBigEndian(f, int32(len(s.buffer))); err != nil {
 				return err
 			}
 			s.nSamples += len(s.buffer)
@@ -113,26 +108,26 @@ func (s *Stream) Read(f *Buffer, done <-chan struct{}) error {
 	}
 }
 
-func (s *Stream) updateHeader(f *Buffer) error {
+func (s *Stream) updateHeader(w *Buffer) error {
 	nSamples := s.nSamples
 
 	totalBytes := 4 + 8 + 18 + 8 + 8 + 4*nSamples
-	if _, err := f.Seek(4, 0); err != nil {
+	if _, err := w.Seek(4, 0); err != nil {
 		return err
 	}
-	if err := binary.Write(f, binary.BigEndian, int32(totalBytes)); err != nil {
+	if err := writeBigEndian(w, int32(totalBytes)); err != nil {
 		return err
 	}
-	if _, err := f.Seek(22, 0); err != nil {
+	if _, err := w.Seek(22, 0); err != nil {
 		return err
 	}
-	if err := (binary.Write(f, binary.BigEndian, int32(nSamples))); err != nil {
+	if err := writeBigEndian(w, int32(nSamples)); err != nil {
 		return err
 	}
-	if _, err := f.Seek(42, 0); err != nil {
+	if _, err := w.Seek(42, 0); err != nil {
 		return err
 	}
-	if err := (binary.Write(f, binary.BigEndian, int32(4*nSamples+8))); err != nil {
+	if err := writeBigEndian(w, int32(4*nSamples+8)); err != nil {
 		return err
 	}
 	return nil
