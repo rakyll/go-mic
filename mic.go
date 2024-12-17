@@ -9,9 +9,9 @@ import (
 )
 
 type Stream struct {
-	stream   *portaudio.Stream
-	nSamples int
-	buffer   []int32
+	stream       *portaudio.Stream
+	totalSamples int
+	buffer       []int32
 }
 
 func Open() (*Stream, error) {
@@ -25,9 +25,9 @@ func Open() (*Stream, error) {
 	}
 
 	s := &Stream{
-		stream:   stream,
-		nSamples: 0,
-		buffer:   in,
+		stream:       stream,
+		totalSamples: 0,
+		buffer:       in,
 	}
 
 	return s, nil
@@ -103,15 +103,15 @@ func (s *Stream) Read(f *Buffer, done <-chan struct{}) error {
 			if err := writeBigEndian(f, int32(len(s.buffer))); err != nil {
 				return err
 			}
-			s.nSamples += len(s.buffer)
+			s.totalSamples += len(s.buffer)
 		}
 	}
 }
 
 func (s *Stream) updateHeader(w *Buffer) error {
-	nSamples := s.nSamples
+	totalSamples := s.totalSamples
 
-	totalBytes := 4 + 8 + 18 + 8 + 8 + 4*nSamples
+	totalBytes := 4 + 8 + 18 + 8 + 8 + 4*totalSamples
 	if _, err := w.Seek(4, 0); err != nil {
 		return err
 	}
@@ -121,13 +121,13 @@ func (s *Stream) updateHeader(w *Buffer) error {
 	if _, err := w.Seek(22, 0); err != nil {
 		return err
 	}
-	if err := writeBigEndian(w, int32(nSamples)); err != nil {
+	if err := writeBigEndian(w, int32(totalSamples)); err != nil {
 		return err
 	}
 	if _, err := w.Seek(42, 0); err != nil {
 		return err
 	}
-	if err := writeBigEndian(w, int32(4*nSamples+8)); err != nil {
+	if err := writeBigEndian(w, int32(4*totalSamples+8)); err != nil {
 		return err
 	}
 	return nil
