@@ -24,6 +24,8 @@ func main() {
 		log.Fatalf("Error reading from mic: %v", err)
 	}
 
+	_ = buf.Bytes() // use bytes
+
 	if err := stream.Close(); err != nil {
 		log.Fatalf("Error closing mic: %v", err)
 	}
