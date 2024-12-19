@@ -13,18 +13,17 @@ func main() {
 		log.Fatalf("Error opening mic: %v", err)
 	}
 
-	done := make(chan struct{})
-	go func() {
-		time.Sleep(5 * time.Second)
-		close(done)
-	}()
-
-	buf := mic.NewBuffer()
-	if err := stream.Read(buf, done); err != nil {
-		log.Fatalf("Error reading from mic: %v", err)
+	if err := stream.Start(); err != nil {
+		log.Fatalf("Error starting mic: %v", err)
 	}
 
-	_ = buf.Bytes() // use bytes
+	// Record for two seconds...
+	time.Sleep(2 * time.Second)
+	if err := stream.Stop(); err != nil {
+		log.Fatalf("Error stopping mic: %v", err)
+	}
+
+	_ = stream.EncodedBytes() // use bytes
 
 	if err := stream.Close(); err != nil {
 		log.Fatalf("Error closing mic: %v", err)

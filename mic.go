@@ -9,9 +9,12 @@ import (
 )
 
 type Stream struct {
-	stream       *portaudio.Stream
-	totalSamples int
-	buffer       []int32
+	stream        *portaudio.Stream
+	totalSamples  int
+	buffer        []int32
+	encodedBuffer *Buffer
+	stop          chan struct{}
+	err           error
 }
 
 func Open() (*Stream, error) {
@@ -25,9 +28,11 @@ func Open() (*Stream, error) {
 	}
 
 	s := &Stream{
-		stream:       stream,
-		totalSamples: 0,
-		buffer:       in,
+		stream:        stream,
+		totalSamples:  0,
+		buffer:        in,
+		encodedBuffer: NewBuffer(),
+		stop:          make(chan struct{}),
 	}
 
 	return s, nil
@@ -81,31 +86,43 @@ func (s *Stream) writeHeader(w *Buffer) error {
 	)
 }
 
-func (s *Stream) Read(f *Buffer, done <-chan struct{}) error {
+func (s *Stream) Start() error {
 	if err := s.stream.Start(); err != nil {
 		return err
 	}
-	if err := s.writeHeader(f); err != nil {
+	if err := s.writeHeader(s.encodedBuffer); err != nil {
 		return err
 	}
-
-	for {
-		select {
-		case <-done:
-			if err := s.updateHeader(f); err != nil {
-				return err
+	go func() {
+		for {
+			select {
+			case <-s.stop:
+				if err := s.updateHeader(s.encodedBuffer); err != nil {
+					s.err = err
+					return
+				}
+				if err := s.stream.Stop(); err != nil {
+					return
+				}
+			default:
+				if err := s.stream.Read(); err != nil {
+					s.err = err
+					return
+				}
+				if err := binary.Write(s.encodedBuffer, binary.BigEndian, s.buffer); err != nil {
+					s.err = err
+					return
+				}
+				s.totalSamples += len(s.buffer)
 			}
-			return s.stream.Stop()
-		default:
-			if err := s.stream.Read(); err != nil {
-				return err
-			}
-			if err := writeBigEndian(f, int32(len(s.buffer))); err != nil {
-				return err
-			}
-			s.totalSamples += len(s.buffer)
 		}
-	}
+	}()
+	return nil
+}
+
+func (s *Stream) Stop() error {
+	close(s.stop)
+	return s.err
 }
 
 func (s *Stream) updateHeader(w *Buffer) error {
@@ -135,6 +152,10 @@ func (s *Stream) updateHeader(w *Buffer) error {
 
 func (s *Stream) Close() error {
 	return s.stream.Close()
+}
+
+func (s *Stream) EncodedBytes() []byte {
+	return s.encodedBuffer.Bytes()
 }
 
 func Terminate() error {
