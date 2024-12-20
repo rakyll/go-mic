@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"github.com/rakyll/go-mic"
@@ -19,13 +20,9 @@ func main() {
 
 	// Record for two seconds...
 	time.Sleep(2 * time.Second)
-	if err := stream.Stop(); err != nil {
-		log.Fatalf("Error stopping mic: %v", err)
-	}
+	defer stream.Close()
 
-	_ = stream.EncodedBytes() // use bytes
-
-	if err := stream.Close(); err != nil {
-		log.Fatalf("Error closing mic: %v", err)
+	if err := os.WriteFile("out.wav", stream.EncodedBytes(), 0644); err != nil {
+		log.Fatalf("Error writing file: %v", err)
 	}
 }
