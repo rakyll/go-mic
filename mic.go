@@ -87,21 +87,22 @@ func (s *Stream) writeHeader(w *Buffer) error {
 }
 
 func (s *Stream) Start() error {
-	if err := s.stream.Start(); err != nil {
+	if err := s.writeHeader(s.encodedBuffer); err != nil {
 		return err
 	}
-	if err := s.writeHeader(s.encodedBuffer); err != nil {
+	if err := s.stream.Start(); err != nil {
 		return err
 	}
 	go func() {
 		for {
 			select {
 			case <-s.stop:
-				if err := s.updateHeader(s.encodedBuffer); err != nil {
+				if err := s.stream.Stop(); err != nil {
 					s.err = err
 					return
 				}
-				if err := s.stream.Stop(); err != nil {
+				if err := s.updateHeader(s.encodedBuffer); err != nil {
+					s.err = err
 					return
 				}
 			default:
