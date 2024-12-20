@@ -13,7 +13,7 @@ type Stream struct {
 	totalSamples  int
 	buffer        []int32
 	encodedBuffer *Buffer
-	stopCh        chan struct{}
+	stop          chan struct{}
 	err           error
 }
 
@@ -32,7 +32,7 @@ func Open() (*Stream, error) {
 		totalSamples:  0,
 		buffer:        in,
 		encodedBuffer: NewBuffer(),
-		stopCh:        make(chan struct{}),
+		stop:          make(chan struct{}),
 	}
 
 	return s, nil
@@ -96,7 +96,7 @@ func (s *Stream) Start() error {
 	go func() {
 		for {
 			select {
-			case <-s.stopCh:
+			case <-s.stop:
 				if err := s.stream.Stop(); err != nil {
 					s.err = err
 					return
@@ -121,8 +121,8 @@ func (s *Stream) Start() error {
 	return nil
 }
 
-func (s *Stream) stop() error {
-	close(s.stopCh)
+func (s *Stream) Stop() error {
+	close(s.stop)
 	return s.err
 }
 
